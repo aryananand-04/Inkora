@@ -1,0 +1,137 @@
+@import "tailwindcss";
+@import "@fontsource/geist-sans/400.css";
+@import "@fontsource/geist-sans/500.css";
+@import "@fontsource/geist-sans/600.css";
+@import "@fontsource/geist-sans/700.css";
+@import "@fontsource/geist-sans/900.css";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/geist-mono/500.css";
+@import "@fontsource/geist-mono/600.css";
+
+/* ── Class-based dark mode ── */
+@variant dark (&:where(.dark, .dark *));
+
+/* ── Light mode (default) ── */
+:root {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-light: #f4f4f5;
+  --border: #e4e4e7;
+  --text: #09090b;
+  --text-muted: #52525b;  /* ~7:1 on --bg (was #71717a, borderline) */
+  --text-faint: #6b7280;  /* ~4.8:1 on --bg — lowest tier that still passes AA */
+  --primary-hex: #7c3aed;
+  --primary-light-hex: #8b5cf6;
+  --accent-hex: #d97706;  /* warm marker tone for highlights/medals */
+}
+
+/* ── Dark mode ── */
+html.dark {
+  --bg: #0f0f14;
+  --surface: #1a1a24;
+  --surface-light: #252532;
+  --border: #2e303a;
+  --text: #f3f4f6;
+  --text-muted: #9ca3af;
+  --text-faint: #80828c;
+  --primary-hex: #8b5cf6;
+  --primary-light-hex: #a78bfa;
+  --accent-hex: #f59e0b;
+}
+
+@theme {
+  --color-background: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-light: var(--surface-light);
+  --color-primary: var(--primary-hex);
+  --color-primary-light: var(--primary-light-hex);
+  --color-secondary: #3b82f6;
+  --color-success: #22c55e;
+  --color-warning: #eab308;
+  --color-error: #ef4444;
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-accent: var(--accent-hex);
+  --color-border: var(--border);
+
+  --font-family-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-family-mono: 'Geist Mono', 'JetBrains Mono', monospace;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* ── Animations ── */
+@keyframes score-pop {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  60%  { opacity: 1; transform: translateY(-12px) scale(1.15); }
+  100% { opacity: 0; transform: translateY(-22px) scale(0.9); }
+}
+.score-pop {
+  animation: score-pop 1.8s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.slide-up {
+  animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-10px) rotate(3deg); }
+}
+.float { animation: float 4s ease-in-out infinite; }
+.float-delay { animation: float 4s ease-in-out infinite; animation-delay: -2s; }
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* ── Glass utility (in-game surfaces only: toolbar, word-select, chat, modals) ── */
+.glass {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Glow utility (functional state only: live voice indicator) ── */
+.glow-green {
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Reduced motion: collapse looping/decorative animation ── */
+@media (prefers-reduced-motion: reduce) {
+  .score-pop,
+  .slide-up,
+  .float,
+  .float-delay,
+  .shimmer {
+    animation: none !important;
+  }
+}
