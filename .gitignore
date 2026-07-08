@@ -60,3 +60,7 @@ supabase/.temp
 # ── Internal planning docs  ──
 TIMELINE.md
 PRD.md
+.vercel
+
+# ── Vercel local link ──
+.vercel/
