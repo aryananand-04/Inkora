@@ -17,24 +17,25 @@ A free, open-source, real-time multiplayer drawing & guessing game with **voice 
      README editor (it uploads to user-attachments), or paste a YouTube link. -->
 <sub>▶️ _Demo video — updating soon._</sub>
 
-**🎮 Play now — updating soon** &nbsp;·&nbsp; **[🤝 Help build it](#-want-to-help)**
-<!-- TODO: point "Play now" at your live demo once deployed -->
+**[🎮 Play now](https://playinkora.vercel.app)** &nbsp;·&nbsp; **[🤝 Help build it](#-want-to-help)**
 
 </div>
 
 ---
 
-## Why it exists
+## The problem
 
-Every game night went the same way: share a drawing-game link, then *everyone scramble into a Discord call just to talk* while we played. Two apps, two links, someone always stuck on mute in the wrong channel.
+Every game night went the same way: share a drawing-game link, then *everyone scramble into a Discord call just to talk* while we played.
 
-So I built **Inkora** — the version my friends and I actually wanted: **the game and the voice chat in the same room.** Hop in, your mic's right there, start scribbling. One link, that's it.
+Two apps. Two links. Someone always stuck on mute in the wrong channel. The game hasn't even started and half the group is already debugging audio.
 
-It's open source because game nights are better when anyone can host their own, fork it, and stuff it with their own inside-joke word packs. **If that sounds like your kind of fun — round up some friends and play. If you'd rather build — jump in below.** ⭐
+## The solution
 
----
+Put the voice chat **inside the game.** One link opens the room, your mic is right there next to the canvas, and everyone is talking before the first word is even picked. No second app, no "wait, which server?", no one left behind.
 
-## What you get
+## So I built Inkora
+
+The version my friends and I actually wanted — and here's what it does:
 
 🎙️ **Voice chat in the room** — talk while you draw. Push-to-talk or always-on, per-person volume, and a live mic icon next to whoever's talking. Off until you turn it on, and ready from the lobby.
 
@@ -48,7 +49,9 @@ It's open source because game nights are better when anyone can host their own, 
 
 🏆 **Optional accounts** — play instantly with no login, or sign in to climb a global leaderboard.
 
-🔓 **Yours to run** — fully open source (MIT) and self-hostable.
+🔓 **Yours to run** — fully open source (MIT) and self-hostable, because game nights are better when anyone can host their own, fork it, and stuff it with their own inside-joke word packs.
+
+**If that sounds like your kind of fun — [round up some friends and play](https://playinkora.vercel.app). If you'd rather build — jump in below.** ⭐
 
 ---
 
