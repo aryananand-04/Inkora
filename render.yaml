@@ -14,7 +14,7 @@ services:
         value: 22.16.0
       # Deployed client origin(s), comma-separated
       - key: CORS_ORIGIN
-        value: https://inkora-fawn.vercel.app
+        value: https://playinkora.vercel.app,https://inkora-fawn.vercel.app
       # Optional — only for accounts & leaderboard
       - key: SUPABASE_URL
         sync: false
