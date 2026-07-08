@@ -81,9 +81,21 @@ export function Home({ onLeaderboard }: Props) {
   const [joinDigits, setJoinDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''))
   const [showAuth, setShowAuth]     = useState(false)
   const [joining, setJoining]       = useState(false)
+  const [waitSecs, setWaitSecs]     = useState(0)
   const digitRefs = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => { if (error) setJoining(false) }, [error])
+
+  // Count how long we've been waiting for the server (free hosting sleeps when idle)
+  useEffect(() => {
+    if (isConnected) {
+      setWaitSecs(0)
+      return
+    }
+    const started = Date.now()
+    const id = setInterval(() => setWaitSecs(Math.floor((Date.now() - started) / 1000)), 1000)
+    return () => clearInterval(id)
+  }, [isConnected])
 
   const displayName = profile?.username ?? playerName
 
@@ -176,8 +188,13 @@ export function Home({ onLeaderboard }: Props) {
         >
           <span className={`inline-flex items-center gap-1.5 ${isConnected ? 'text-green-400' : 'text-yellow-400'}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'}`} />
-            {isConnected ? 'Connected' : 'Connecting…'}
+            {isConnected ? 'Connected' : `Connecting… ${waitSecs}s`}
           </span>
+          {!isConnected && waitSecs >= 5 && (
+            <p className="text-text-muted text-xs mt-1.5">
+              ⏳ Waking up the server — first visit can take up to a minute.
+            </p>
+          )}
         </motion.div>
 
         {error && (

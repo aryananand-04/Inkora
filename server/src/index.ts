@@ -10,10 +10,18 @@ import type { ClientToServerEvents, ServerToClientEvents } from 'shared'
 const app = express()
 const httpServer = createServer(app)
 
-const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:5175',
+const envOrigins = process.env.CORS_ORIGIN?.split(',').map(o => o.trim()).filter(Boolean) ?? []
+const allowedOrigins: (string | RegExp)[] = [
+  ...new Set([
+    'https://playinkora.vercel.app',
+    'https://inkora-fawn.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    ...envOrigins,
+  ]),
+  // Vercel preview deployments of this project
+  /^https:\/\/inkora-[a-z0-9]+-aryan-anands-projects-d1e00582\.vercel\.app$/,
 ]
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
