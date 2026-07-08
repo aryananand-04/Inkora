@@ -1,4 +1,4 @@
-import { useRef, useState, memo } from 'react'
+import { useRef, useState, useEffect, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Canvas } from '../components/Canvas/Canvas'
 import { Toolbar } from '../components/Canvas/Toolbar'
@@ -11,14 +11,88 @@ import { AudioSettings } from '../components/Game/AudioSettings'
 import { SpeakingIndicator } from '../components/Game/SpeakingIndicator'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { Wordmark } from '../components/Wordmark'
+import { CategoryPicker, AiWordGenerator } from '../components/Game/WordSettings'
 import { DrawingProvider } from '../context/DrawingContext'
+import { useSocket } from '../context/SocketContext'
 import { useDrawingSync } from '../hooks/useDrawingSync'
 import { useRoom } from '../hooks/useRoom'
 import { VoiceManager } from '../services/VoiceManager'
 import type { CanvasHandle } from '../components/Canvas/Canvas'
 import type { VoiceState } from '../hooks/useVoice'
 import type { Player, RoomSettings, ScoringMode } from 'shared'
-import { CONSTANTS } from 'shared'
+import { CONSTANTS, REACTION_EMOJIS } from 'shared'
+
+// ── Floating emoji reactions ─────────────────────────────────────────────────
+
+interface FloatingReaction {
+  key: number
+  emoji: string
+  playerName: string
+  x: number  // % offset across the canvas
+}
+
+let _reactionKey = 0
+
+function useReactions() {
+  const { socket } = useSocket()
+  const [reactions, setReactions] = useState<FloatingReaction[]>([])
+
+  useEffect(() => {
+    const onReaction = ({ playerName, emoji }: { playerId: string; playerName: string; emoji: string }) => {
+      const key = _reactionKey++
+      setReactions(prev => [...prev.slice(-15), {
+        key, emoji, playerName,
+        x: 10 + Math.random() * 80,
+      }])
+      setTimeout(() => setReactions(prev => prev.filter(r => r.key !== key)), 2500)
+    }
+    socket.on('reaction', onReaction)
+    return () => { socket.off('reaction', onReaction) }
+  }, [socket])
+
+  return reactions
+}
+
+function ReactionOverlay({ reactions }: { reactions: FloatingReaction[] }) {
+  return (
+    <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden rounded-xl">
+      <AnimatePresence>
+        {reactions.map(r => (
+          <motion.div
+            key={r.key}
+            initial={{ opacity: 0, y: 0, scale: 0.6 }}
+            animate={{ opacity: 1, y: -120, scale: 1.15 }}
+            exit={{ opacity: 0, y: -180, scale: 0.9 }}
+            transition={{ duration: 2.2, ease: 'easeOut' }}
+            className="absolute bottom-10 flex flex-col items-center"
+            style={{ left: `${r.x}%` }}
+          >
+            <span className="text-3xl drop-shadow">{r.emoji}</span>
+            <span className="text-[10px] font-semibold text-white/90 bg-black/40 px-1.5 py-0.5 rounded-full mt-0.5">
+              {r.playerName}
+            </span>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function ReactionBar({ onReact }: { onReact: (emoji: string) => void }) {
+  return (
+    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex gap-1 px-2 py-1 glass bg-surface/80 border border-border rounded-full shadow-lg">
+      {REACTION_EMOJIS.map(emoji => (
+        <button
+          key={emoji}
+          onClick={() => onReact(emoji)}
+          className="w-8 h-8 flex items-center justify-center text-lg rounded-full hover:bg-border/60 hover:scale-125 transition-all"
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function SettingRow({ label, value, min, max, step = 1, onChange }: {
   label: string; value: number; min: number; max: number; step?: number
@@ -105,8 +179,10 @@ function GameInner({ voice }: { voice: VoiceState }) {
     allowDrawing, wordChoices, preSelectedWord, wordHints, currentWord,
     round, rounds, timeLeft, drawingTime, chooseWord,
     messages, closeGuessHint, previousWord, currentDrawerId, sendMessage, voteKick,
-    isOwner, settings, updateSettings, correctGuessers, turnResult,
+    isOwner, settings, updateSettings, correctGuessers, turnResult, sendReaction,
   } = useRoom()
+
+  const reactions = useReactions()
 
   const guessedSet = new Set(correctGuessers)
 
@@ -315,6 +391,10 @@ function GameInner({ voice }: { voice: VoiceState }) {
               />
             )}
 
+            {/* Emoji reactions — float up over the canvas */}
+            <ReactionOverlay reactions={reactions} />
+            {!allowDrawing && !wordChoices && <ReactionBar onReact={sendReaction} />}
+
             {/* End-of-turn reveal */}
             <AnimatePresence>
               {turnResult && !wordChoices && (
@@ -337,6 +417,27 @@ function GameInner({ voice }: { voice: VoiceState }) {
                         ? 'Nobody guessed it 😬'
                         : `${turnResult.guessed} ${turnResult.guessed === 1 ? 'player' : 'players'} guessed it 🎉`}
                     </p>
+
+                    {/* Who scored what this turn */}
+                    {turnResult.scores.length > 0 && (
+                      <div className="mt-4 space-y-1 max-h-40 overflow-hidden">
+                        {turnResult.scores.slice(0, 6).map((s, i) => (
+                          <motion.div
+                            key={s.playerId}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 + i * 0.08 }}
+                            className="flex items-center justify-between gap-6 px-4 py-1 bg-white/10 rounded-lg text-sm"
+                          >
+                            <span className="text-white/90 font-medium truncate max-w-40">{s.playerName}</span>
+                            <span className="text-green-400 font-bold tabular-nums">+{s.points}</span>
+                          </motion.div>
+                        ))}
+                        {turnResult.scores.length > 6 && (
+                          <p className="text-white/50 text-xs">+{turnResult.scores.length - 6} more</p>
+                        )}
+                      </div>
+                    )}
                   </motion.div>
                 </motion.div>
               )}
@@ -518,6 +619,11 @@ function GameInner({ voice }: { voice: VoiceState }) {
               <SettingRow label="Words per turn" value={settingsDraft.wordsPerTurn} min={1} max={5}
                 onChange={v => setSettingsDraft(d => d ? { ...d, wordsPerTurn: v } : d)} />
 
+              <CategoryPicker
+                selected={settingsDraft.wordCategories}
+                onChange={cats => setSettingsDraft(d => d ? { ...d, wordCategories: cats } : d)}
+              />
+
               <div>
                 <span className="text-text-muted text-sm font-medium block mb-2">Scoring mode</span>
                 <div className="grid grid-cols-2 gap-2">
@@ -577,6 +683,12 @@ function GameInner({ voice }: { voice: VoiceState }) {
                   >
                     Add
                   </button>
+                </div>
+
+                <div className="mt-2">
+                  <AiWordGenerator
+                    onWords={words => setSettingsDraft(d => d ? { ...d, customWords: [...new Set([...d.customWords, ...words])].slice(0, 200) } : d)}
+                  />
                 </div>
 
                 {settingsDraft.customWords.length > 0 && (

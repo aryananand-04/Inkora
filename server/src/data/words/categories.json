@@ -1,0 +1,64 @@
+{
+  "animals": [
+    "elephant", "giraffe", "penguin", "kangaroo", "octopus", "butterfly", "squirrel",
+    "dolphin", "hedgehog", "flamingo", "crocodile", "panda", "koala", "raccoon",
+    "peacock", "jellyfish", "hamster", "walrus", "cheetah", "gorilla", "ostrich",
+    "seahorse", "lobster", "toucan", "sloth", "beaver", "moose", "bat", "owl",
+    "shark", "whale", "snail", "spider", "scorpion", "chameleon", "platypus",
+    "porcupine", "armadillo", "meerkat", "otter", "llama", "goat", "rooster",
+    "swan", "crab", "starfish", "eagle", "parrot", "turtle", "frog"
+  ],
+  "food": [
+    "pizza", "hamburger", "spaghetti", "pancake", "sushi", "taco", "croissant",
+    "pretzel", "cupcake", "donut", "hot dog", "popcorn", "ice cream", "waffle",
+    "sandwich", "burrito", "milkshake", "lollipop", "watermelon", "pineapple",
+    "avocado", "broccoli", "mushroom", "cheese", "bacon", "fried egg", "noodles",
+    "dumpling", "kebab", "lasagna", "meatball", "omelette", "pomegranate",
+    "coconut", "cherry", "grapes", "lemon", "corn dog", "french fries",
+    "gingerbread", "candy cane", "marshmallow", "smoothie", "espresso",
+    "bubble tea", "ramen", "baguette", "cinnamon roll", "nachos", "pudding"
+  ],
+  "objects": [
+    "umbrella", "telescope", "backpack", "compass", "hourglass", "typewriter",
+    "microscope", "flashlight", "stapler", "wheelbarrow", "chandelier", "anchor",
+    "binoculars", "accordion", "harmonica", "saxophone", "skateboard", "unicycle",
+    "hammock", "lantern", "cauldron", "treasure chest", "grandfather clock",
+    "rocking chair", "vending machine", "fire extinguisher", "periscope",
+    "boomerang", "slingshot", "kaleidoscope", "metronome", "snow globe",
+    "windmill", "lighthouse", "fountain pen", "magnifying glass", "paperclip",
+    "corkscrew", "whisk", "blender", "toaster", "kettle", "drone", "joystick",
+    "headphones", "keyboard", "printer", "calculator", "thermometer", "syringe"
+  ],
+  "actions": [
+    "juggling", "sneezing", "yawning", "tiptoeing", "moonwalking", "shivering",
+    "daydreaming", "eavesdropping", "arm wrestling", "hitchhiking", "limbo",
+    "cartwheels", "somersault", "high five", "fist bump", "facepalm", "photobomb",
+    "sleepwalking", "snoring", "whistling", "hiccuping", "stretching", "jogging",
+    "meditating", "surfing", "skydiving", "bungee jumping", "rock climbing",
+    "ice skating", "breakdancing", "dabbing", "floss dance", "karate chop",
+    "tug of war", "hide and seek", "piggyback ride", "thumb war", "slow motion",
+    "balancing", "levitating", "marching", "saluting", "curtsy", "shrugging",
+    "winking", "gargling", "planking", "dodging", "crawling", "waving"
+  ],
+  "places": [
+    "beach", "volcano", "waterfall", "desert", "igloo", "castle", "treehouse",
+    "lighthouse", "pyramid", "skyscraper", "subway", "airport", "carnival",
+    "circus", "aquarium", "library", "museum", "stadium", "cemetery", "maze",
+    "cave", "swamp", "jungle", "glacier", "canyon", "oasis", "reef", "harbor",
+    "vineyard", "orchard", "greenhouse", "barn", "windmill farm", "amusement park",
+    "haunted house", "space station", "submarine", "campsite", "ski resort",
+    "waiting room", "elevator", "rooftop", "basement", "attic", "drive-in",
+    "laundromat", "food court", "gas station", "toll booth", "playground"
+  ],
+  "movies": [
+    "superhero", "wizard", "pirate", "zombie", "vampire", "werewolf", "alien",
+    "robot", "dinosaur", "mermaid", "dragon", "unicorn", "ninja", "cowboy",
+    "detective", "spy", "time machine", "spaceship", "magic wand", "lightsaber",
+    "batmobile", "genie lamp", "glass slipper", "poisoned apple", "flying carpet",
+    "invisibility cloak", "crystal ball", "haunted doll", "movie theater",
+    "red carpet", "director", "clapperboard", "popcorn bucket", "film reel",
+    "sequel", "plot twist", "villain", "sidekick", "stunt double", "green screen",
+    "makeup artist", "award trophy", "autograph", "paparazzi", "blockbuster",
+    "trailer", "cliffhanger", "flashback", "slow clap", "standing ovation"
+  ]
+}

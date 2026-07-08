@@ -8,6 +8,7 @@ import { VoiceControls } from '../components/Game/VoiceControls'
 import { SpeakingIndicator } from '../components/Game/SpeakingIndicator'
 import { VoiceManager } from '../services/VoiceManager'
 import type { VoiceState } from '../hooks/useVoice'
+import { CategoryPicker, AiWordGenerator } from '../components/Game/WordSettings'
 import type { Player, RoomSettings, ScoringMode } from 'shared'
 
 function SettingRow({ label, value, min, max, step = 1, onChange, disabled }: {
@@ -109,16 +110,16 @@ export function Lobby({ roomCode, voice }: { roomCode: string; voice: VoiceState
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-text mb-1">Waiting for players</h1>
           <p className="text-text-muted text-sm mb-5">Share this code with friends to join</p>
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-2">
             {roomCode.split('').map((digit, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.07, duration: 0.3 }}
-                className="w-16 h-20 flex items-center justify-center bg-surface border-2 border-primary/50 rounded-2xl shadow-[0_0_20px_rgba(139,92,246,0.2)]"
+                className="w-12 h-16 flex items-center justify-center bg-surface border-2 border-primary/50 rounded-2xl shadow-[0_0_20px_rgba(139,92,246,0.2)]"
               >
-                <span className="text-4xl font-black font-mono text-text tracking-tighter">{digit}</span>
+                <span className="text-2xl font-black font-mono text-text tracking-tighter">{digit}</span>
               </motion.div>
             ))}
           </div>
@@ -218,6 +219,12 @@ export function Lobby({ roomCode, voice }: { roomCode: string; voice: VoiceState
             <span className={`text-right font-semibold ${settings.scoringMode === 'competitive' ? 'text-orange-400' : 'text-text'}`}>
               {settings.scoringMode === 'competitive' ? 'Competitive' : 'Normal'}
             </span>
+            <span className="text-text-muted">Visibility</span>
+            <span className={`text-right font-medium ${settings.isPublic ? 'text-green-400' : 'text-text'}`}>
+              {settings.isPublic ? 'Public' : 'Private'}
+            </span>
+            <span className="text-text-muted">Word packs</span>
+            <span className="text-text text-right font-medium">{settings.wordCategories.length}</span>
             {settings.customWords.length > 0 && (
               <>
                 <span className="text-text-muted">Custom words</span>
@@ -357,6 +364,32 @@ export function Lobby({ roomCode, voice }: { roomCode: string; voice: VoiceState
               <SettingRow label="Rounds" value={draft.rounds} min={1} max={10} onChange={v => setDraft(d => ({ ...d, rounds: v }))} disabled={false} />
               <SettingRow label="Drawing time (s)" value={draft.drawingTime} min={30} max={180} step={10} onChange={v => setDraft(d => ({ ...d, drawingTime: v }))} disabled={false} />
               <SettingRow label="Words per turn" value={draft.wordsPerTurn} min={1} max={5} onChange={v => setDraft(d => ({ ...d, wordsPerTurn: v }))} disabled={false} />
+              <SettingRow label="Players per network (IP)" value={draft.clientsPerIpLimit} min={1} max={10} onChange={v => setDraft(d => ({ ...d, clientsPerIpLimit: v }))} disabled={false} />
+
+              {/* Public room toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-text-muted text-sm font-medium block">Public room</span>
+                  <span className="text-[11px] text-text-faint">Anyone can find and join from the home page</span>
+                </div>
+                <button
+                  onClick={() => setDraft(d => ({ ...d, isPublic: !d.isPublic }))}
+                  role="switch"
+                  aria-checked={draft.isPublic}
+                  className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ml-3 ${
+                    draft.isPublic ? 'bg-primary' : 'bg-border'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                    draft.isPublic ? 'translate-x-[22px]' : 'translate-x-0.5'
+                  }`} />
+                </button>
+              </div>
+
+              <CategoryPicker
+                selected={draft.wordCategories}
+                onChange={cats => setDraft(d => ({ ...d, wordCategories: cats }))}
+              />
 
               <div>
                 <div className="flex justify-between mb-2">
@@ -430,6 +463,12 @@ export function Lobby({ roomCode, voice }: { roomCode: string; voice: VoiceState
                   >
                     Add
                   </button>
+                </div>
+
+                <div className="mt-2">
+                  <AiWordGenerator
+                    onWords={words => setDraft(d => ({ ...d, customWords: [...new Set([...d.customWords, ...words])].slice(0, 200) }))}
+                  />
                 </div>
 
                 {draft.customWords.length > 0 && (

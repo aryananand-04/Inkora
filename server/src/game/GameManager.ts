@@ -1,5 +1,5 @@
 import type { Server } from 'socket.io'
-import type { ClientToServerEvents, ServerToClientEvents, WordHint, ScoringMode, TurnEndReason } from 'shared'
+import type { ClientToServerEvents, ServerToClientEvents, WordHint, ScoringMode, TurnEndReason, TurnScore } from 'shared'
 import { CONSTANTS } from 'shared'
 import type { Room } from '../rooms/Room.js'
 import type { Player } from '../rooms/Player.js'
@@ -27,6 +27,7 @@ export class GameManager {
   private hintsRevealedCount: number = 0
   private totalHintCount: number = 0
   private correctGuessers = new Set<string>()
+  private lastTurnScores: TurnScore[] = []
   previousWord: string | null = null
 
   constructor(defaultWords: string[], customWords: string[] = [], customWordsChance = 0) {
@@ -39,6 +40,13 @@ export class GameManager {
     this.customDeck = shuffle([...words])
     this.customIndex = 0
     this.customWordsChance = Math.max(0, Math.min(100, chance))
+  }
+
+  // Swap the default deck (e.g. when the owner changes word categories mid-game)
+  updateDefaultWords(words: string[]): void {
+    if (words.length === 0) return
+    this.defaultDeck = shuffle([...words])
+    this.defaultIndex = 0
   }
 
   getHints(): WordHint[] | null {
@@ -109,6 +117,7 @@ export class GameManager {
       previousWord: this.previousWord,
       drawerId,
       turnEndReason: prevTurnEndReason,
+      turnScores: this.lastTurnScores,
     })
 
     io.to(drawerId).emit('your-turn', {
@@ -200,9 +209,31 @@ export class GameManager {
     }
   }
 
-  // Kick the drawer mid-turn — no award, advance immediately after brief pause
+  // Kick the drawer mid-turn — revert this turn's guesser points, no drawer
+  // award, then advance after a brief pause (PRD §5.3)
   kickDrawer(io: TypedServer, room: Room): void {
     this.clearTimers()   // clears drawingTimer, hintTimers, AND any existing advanceTimer
+
+    let reverted = false
+    for (const playerId of this.correctGuessers) {
+      const player = room.getPlayer(playerId)
+      if (player && player.lastScore > 0) {
+        player.score -= player.lastScore
+        player.lastScore = 0
+        reverted = true
+      }
+    }
+    this.lastTurnScores = []
+    if (reverted) {
+      io.to(room.code).emit('update-players', room.getPlayersArray().map(p => p.toJSON()))
+      io.to(room.code).emit('message', {
+        playerId: '',
+        playerName: '',
+        content: 'Drawer was kicked — points from this turn were reverted',
+        type: 'system',
+      })
+    }
+
     this.advanceTimer = setTimeout(() => {
       this.advanceTimer = null
       const continued = this.advanceTurn(io, room, 'drawer_kicked')
@@ -232,6 +263,13 @@ export class GameManager {
       }
       io.to(room.code).emit('update-players', room.getPlayersArray().map(p => p.toJSON()))
     }
+
+    // Snapshot this turn's earnings before startTurn resets lastScore,
+    // so the next next-turn event can show the score summary.
+    this.lastTurnScores = room.getPlayersArray()
+      .filter(p => p.lastScore > 0)
+      .sort((a, b) => b.lastScore - a.lastScore)
+      .map(p => ({ playerId: p.id, playerName: p.name, points: p.lastScore }))
 
     // Short pause so players can see the final state before the next turn
     this.advanceTimer = setTimeout(() => {

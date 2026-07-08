@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { AnimatePresence, motion, type Variants } from 'framer-motion'
 import { useRoom } from './hooks/useRoom'
 import { useVoice } from './hooks/useVoice'
@@ -6,9 +6,11 @@ import type { VoiceState } from './hooks/useVoice'
 import { AuthProvider } from './context/AuthContext'
 import { Home } from './pages/Home'
 import { Lobby } from './pages/Lobby'
-import { Game } from './pages/Game'
-import { GameOver } from './components/Game/GameOver'
-import { Leaderboard } from './pages/Leaderboard'
+
+// Code-split the heavy screens — Game (canvas + tools), GameOver, Leaderboard
+const Game = lazy(() => import('./pages/Game').then(m => ({ default: m.Game })))
+const GameOver = lazy(() => import('./components/Game/GameOver').then(m => ({ default: m.GameOver })))
+const Leaderboard = lazy(() => import('./pages/Leaderboard').then(m => ({ default: m.Leaderboard })))
 
 export type { VoiceState }
 
@@ -20,12 +22,12 @@ const pageVariants: Variants = {
   exit:    { opacity: 0, scale: 0.97, transition: { duration: 0.18, ease: 'easeIn' } },
 }
 
-function ReconnectingScreen() {
+function LoadingScreen({ label }: { label?: string }) {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-text-muted text-sm">Rejoining room…</p>
+        {label && <p className="text-text-muted text-sm">{label}</p>}
       </div>
     </div>
   )
@@ -46,7 +48,7 @@ function AppInner() {
     if (isConnected && !sessionStorage.getItem(SESSION_KEY)) setReconnecting(false)
   }, [isConnected])
 
-  if (reconnecting) return <ReconnectingScreen />
+  if (reconnecting) return <LoadingScreen label="Rejoining room…" />
 
   let page: React.ReactNode
   let pageKey: string
@@ -81,7 +83,9 @@ function AppInner() {
   return (
     <AnimatePresence mode="wait">
       <motion.div key={pageKey} {...pageVariants} style={{ minHeight: '100vh' }}>
-        {page}
+        <Suspense fallback={<LoadingScreen />}>
+          {page}
+        </Suspense>
       </motion.div>
     </AnimatePresence>
   )

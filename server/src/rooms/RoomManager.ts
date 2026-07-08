@@ -6,17 +6,26 @@ class RoomManager {
   private rooms: Map<string, Room> = new Map()
 
   private generateRoomCode(): string {
+    const alphabet = CONSTANTS.ROOM_CODE_ALPHABET
     let code: string
     do {
-      // 4-digit numeric code: 1000–9999
-      code = String(Math.floor(Math.random() * 9000) + 1000)
+      code = Array.from(
+        { length: CONSTANTS.ROOM_CODE_LENGTH },
+        () => alphabet[Math.floor(Math.random() * alphabet.length)],
+      ).join('')
     } while (this.rooms.has(code))
     return code
   }
 
+  isValidCode(code: unknown): code is string {
+    return typeof code === 'string'
+      && code.length === CONSTANTS.ROOM_CODE_LENGTH
+      && [...code].every(ch => CONSTANTS.ROOM_CODE_ALPHABET.includes(ch))
+  }
+
   createRoom(settings?: Partial<RoomSettings>, preferredCode?: string): Room {
     let code: string
-    if (preferredCode && /^[0-9]{4}$/.test(preferredCode) && !this.rooms.has(preferredCode)) {
+    if (preferredCode && this.isValidCode(preferredCode) && !this.rooms.has(preferredCode)) {
       code = preferredCode
     } else {
       code = this.generateRoomCode()
@@ -24,6 +33,15 @@ class RoomManager {
     const room = new Room(code, settings)
     this.rooms.set(code, room)
     return room
+  }
+
+  // Rooms that opted into the public list and can still be joined
+  getPublicRooms(): Room[] {
+    return [...this.rooms.values()].filter(room =>
+      room.settings.isPublic
+      && room.state !== 'gameOver'
+      && room.players.size < room.settings.maxPlayers,
+    )
   }
 
   getRoom(code: string): Room | undefined {

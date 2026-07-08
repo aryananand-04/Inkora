@@ -1,4 +1,6 @@
-import Peer from 'peerjs'
+// PeerJS is loaded lazily in init() — it's only needed once the player is in a
+// room and enables voice, so it stays out of the initial bundle.
+import type Peer from 'peerjs'
 import type { MediaConnection } from 'peerjs'
 
 const VAD_INTERVAL_MS = 80
@@ -47,6 +49,8 @@ export class VoiceManager {
   }
 
   async init(roomCode: string, playerId: string): Promise<void> {
+    const { default: Peer } = await import('peerjs')
+
     // Echo / noise cancellation at the browser level
     this.localStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },

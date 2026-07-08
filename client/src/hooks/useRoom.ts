@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSocket } from '../context/SocketContext'
 import { DEFAULT_ROOM_SETTINGS } from 'shared'
-import type { Player, GameState, RoomSettings, DrawEvent, WordHint, MessageEvent, GameOverEvent } from 'shared'
+import type { Player, GameState, RoomSettings, DrawEvent, WordHint, MessageEvent, GameOverEvent, TurnScore } from 'shared'
 import { playCorrectSound, playTurnStartSound } from '../services/sounds'
 
 interface RoomState {
@@ -28,7 +28,8 @@ interface RoomState {
   previousWord: string | null
   currentDrawerId: string | null
   correctGuessers: string[]                                   // ids who guessed this turn
-  turnResult: { word: string; guessed: number } | null        // brief end-of-turn reveal
+  // brief end-of-turn reveal: the word + who scored what
+  turnResult: { word: string; guessed: number; scores: TurnScore[] } | null
   gameOverData: GameOverEvent | null
   error: string | null
 }
@@ -227,11 +228,13 @@ export function useRoom() {
           previousWord: prevWord,
           currentDrawerId: data.drawerId ?? null,
           correctGuessers: [],
-          turnResult: prevWord ? { word: prevWord, guessed: prev.correctGuessers.length } : prev.turnResult,
+          turnResult: prevWord
+            ? { word: prevWord, guessed: prev.correctGuessers.length, scores: data.turnScores ?? [] }
+            : prev.turnResult,
           messages: newMessages,
         }
       })
-      if (prevWord) setTimeout(() => _setRoomState(p => ({ ...p, turnResult: null })), 3500)
+      if (prevWord) setTimeout(() => _setRoomState(p => ({ ...p, turnResult: null })), 4500)
     }
 
     const onYourTurn = (data: any) => {
@@ -468,6 +471,11 @@ export function useRoom() {
     socket.emit('toggle-spectate')
   }, [socket, isConnected])
 
+  const sendReaction = useCallback((emoji: string) => {
+    if (!isConnected) return
+    socket.emit('reaction', { emoji })
+  }, [socket, isConnected])
+
   const isOwner = state.playerId === state.ownerId
   const currentPlayer = state.players.find(p => p.id === state.playerId)
 
@@ -487,5 +495,6 @@ export function useRoom() {
     playAgain,
     updateSettings,
     voteKick,
+    sendReaction,
   }
 }

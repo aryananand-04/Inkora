@@ -25,7 +25,24 @@ export interface RoomSettings {
   scoringMode: ScoringMode
   customWords: string[]
   customWordsChance: number  // 0–100 — percentage of word picks that come from the custom pool
+  clientsPerIpLimit: number  // max connected players per IP (localhost exempt)
+  wordCategories: string[]   // which word packs feed the default pool
 }
+
+export const WORD_CATEGORIES = [
+  { id: 'classic', label: 'Classic' },
+  { id: 'animals', label: 'Animals' },
+  { id: 'food', label: 'Food & Drink' },
+  { id: 'objects', label: 'Objects' },
+  { id: 'actions', label: 'Actions' },
+  { id: 'places', label: 'Places' },
+  { id: 'movies', label: 'Movies & TV' },
+] as const
+
+export type WordCategoryId = (typeof WORD_CATEGORIES)[number]['id']
+
+// The only emojis accepted by the 'reaction' socket event (validated server-side)
+export const REACTION_EMOJIS = ['👍', '😂', '😍', '🔥', '👏', '😱', '💀', '❤️'] as const
 
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   maxPlayers: 8,
@@ -36,6 +53,19 @@ export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   scoringMode: 'normal',
   customWords: [],
   customWordsChance: 50,
+  clientsPerIpLimit: 2,
+  wordCategories: ['classic'],
+}
+
+// Public room listing entry (GET /api/rooms/public)
+export interface PublicRoomInfo {
+  code: string
+  hostName: string
+  playerCount: number
+  maxPlayers: number
+  state: GameState
+  round: number
+  rounds: number
 }
 
 export interface WordHint {
@@ -64,6 +94,8 @@ export const CONSTANTS = {
   MAX_MESSAGE_LENGTH: 200,
   RATE_LIMIT_MESSAGES: 5,
   RATE_LIMIT_WINDOW: 3000,
-  ROOM_CODE_LENGTH: 4,
+  ROOM_CODE_LENGTH: 6,
+  // Unambiguous uppercase alphanumerics (no I/L/O/0/1)
+  ROOM_CODE_ALPHABET: 'ABCDEFGHJKMNPQRSTUVWXYZ23456789',
   SLOT_RESERVATION_TIME: 60000,
 } as const

@@ -7,13 +7,68 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { Doodles } from '../components/Doodles'
 import { Wordmark } from '../components/Wordmark'
 import { supabaseEnabled } from '../lib/supabase'
+import { CONSTANTS } from 'shared'
+import type { PublicRoomInfo } from 'shared'
 
 interface Props {
   onLeaderboard: () => void
 }
 
+const SERVER_URL = (import.meta.env.VITE_SERVER_URL as string) ?? 'http://localhost:3001'
+const CODE_LENGTH = CONSTANTS.ROOM_CODE_LENGTH
+
 function generateCode(): string {
-  return String(Math.floor(Math.random() * 9000) + 1000)
+  const alphabet = CONSTANTS.ROOM_CODE_ALPHABET
+  return Array.from(
+    { length: CODE_LENGTH },
+    () => alphabet[Math.floor(Math.random() * alphabet.length)],
+  ).join('')
+}
+
+function PublicRoomList({ onJoin, disabled }: { onJoin: (code: string) => void; disabled: boolean }) {
+  const [rooms, setRooms] = useState<PublicRoomInfo[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      fetch(`${SERVER_URL}/api/rooms/public`)
+        .then(r => r.json())
+        .then(data => { if (!cancelled) setRooms(data.rooms ?? []) })
+        .catch(() => { if (!cancelled) setRooms([]) })
+    }
+    load()
+    const id = setInterval(load, 5000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  if (rooms === null) return null
+  if (rooms.length === 0) {
+    return <p className="text-text-faint text-xs text-center">No public rooms right now — create one!</p>
+  }
+
+  return (
+    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+      {rooms.map(room => (
+        <button
+          key={room.code}
+          onClick={() => onJoin(room.code)}
+          disabled={disabled}
+          className="w-full flex items-center justify-between px-3 py-2 bg-surface-light border border-border rounded-xl text-sm hover:border-primary/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="font-mono font-bold text-text tracking-wider">{room.code}</span>
+            <span className="text-text-muted truncate">by {room.hostName}</span>
+          </span>
+          <span className="flex items-center gap-2 flex-shrink-0 text-xs">
+            {room.state === 'ongoing' && (
+              <span className="text-yellow-400">In game · R{room.round}/{room.rounds}</span>
+            )}
+            <span className="text-text-muted tabular-nums">{room.playerCount}/{room.maxPlayers}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export function Home({ onLeaderboard }: Props) {
@@ -23,7 +78,7 @@ export function Home({ onLeaderboard }: Props) {
   const [playerName, setPlayerName] = useState(profile?.username ?? '')
   const [mode, setMode]             = useState<'home' | 'create' | 'join'>('home')
   const [generatedCode, setGeneratedCode] = useState('')
-  const [joinDigits, setJoinDigits] = useState(['', '', '', ''])
+  const [joinDigits, setJoinDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''))
   const [showAuth, setShowAuth]     = useState(false)
   const [joining, setJoining]       = useState(false)
   const digitRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -45,10 +100,16 @@ export function Home({ onLeaderboard }: Props) {
 
   const joinCode = joinDigits.join('')
   const handleJoin = () => {
-    if (displayName.trim() && joinCode.length === 4) {
+    if (displayName.trim() && joinCode.length === CODE_LENGTH) {
       setJoining(true)
       joinRoom(joinCode, displayName.trim())
     }
+  }
+
+  const handleJoinPublic = (code: string) => {
+    if (!displayName.trim()) return
+    setJoining(true)
+    joinRoom(code, displayName.trim())
   }
 
   const isAnonymous = user?.is_anonymous ?? false
@@ -191,16 +252,16 @@ export function Home({ onLeaderboard }: Props) {
                   <p className="text-text-muted text-sm mb-4">
                     Share this code with your friends
                   </p>
-                  <div className="flex items-center justify-center gap-3 mb-3">
+                  <div className="flex items-center justify-center gap-2 mb-3">
                     {generatedCode.split('').map((digit, i) => (
                       <motion.div
                         key={i}
                         initial={{ opacity: 0, scale: 0.8, y: 8 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ delay: i * 0.06, duration: 0.3 }}
-                        className="w-16 h-20 flex items-center justify-center bg-surface-light border-2 border-primary rounded-2xl shadow-sm shadow-primary/15"
+                        className="w-12 h-16 flex items-center justify-center bg-surface-light border-2 border-primary rounded-2xl shadow-sm shadow-primary/15"
                       >
-                        <span className="text-4xl font-black font-mono text-text tracking-tighter">
+                        <span className="text-2xl font-black font-mono text-text tracking-tighter">
                           {digit}
                         </span>
                       </motion.div>
@@ -241,21 +302,31 @@ export function Home({ onLeaderboard }: Props) {
               >
                 <div>
                   <p className="text-text-muted text-sm text-center mb-3 font-medium">Enter room code</p>
-                  <div className="flex gap-3 justify-center">
+                  <div className="flex gap-2 justify-center">
                     {joinDigits.map((d, i) => (
                       <input
                         key={i}
                         ref={el => { digitRefs.current[i] = el }}
                         type="text"
-                        inputMode="numeric"
-                        maxLength={1}
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                        maxLength={CODE_LENGTH}
                         value={d}
                         onChange={e => {
-                          const val = e.target.value.replace(/\D/g, '').slice(-1)
+                          // Accept a paste of the whole code into any box
+                          const chars = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
                           const next = [...joinDigits]
-                          next[i] = val
+                          if (chars.length > 1) {
+                            for (let j = 0; j < chars.length && i + j < CODE_LENGTH; j++) {
+                              next[i + j] = chars[j]
+                            }
+                            setJoinDigits(next)
+                            digitRefs.current[Math.min(i + chars.length, CODE_LENGTH - 1)]?.focus()
+                            return
+                          }
+                          next[i] = chars.slice(-1)
                           setJoinDigits(next)
-                          if (val && i < 3) digitRefs.current[i + 1]?.focus()
+                          if (chars && i < CODE_LENGTH - 1) digitRefs.current[i + 1]?.focus()
                         }}
                         onKeyDown={e => {
                           if (e.key === 'Backspace' && !joinDigits[i] && i > 0) {
@@ -264,23 +335,35 @@ export function Home({ onLeaderboard }: Props) {
                             setJoinDigits(next)
                             digitRefs.current[i - 1]?.focus()
                           }
-                          if (e.key === 'Enter' && joinCode.length === 4) handleJoin()
+                          if (e.key === 'Enter' && joinCode.length === CODE_LENGTH) handleJoin()
                         }}
                         onFocus={e => e.target.select()}
-                        className="w-14 h-16 text-center text-2xl font-black font-mono bg-surface-light border-2 border-border rounded-2xl text-text focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all caret-transparent"
+                        className="w-12 h-14 text-center text-xl font-black font-mono bg-surface-light border-2 border-border rounded-xl text-text focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all caret-transparent uppercase"
                       />
                     ))}
                   </div>
                 </div>
                 <button
                   onClick={handleJoin}
-                  disabled={!displayName.trim() || joinCode.length !== 4 || !isConnected || joining}
+                  disabled={!displayName.trim() || joinCode.length !== CODE_LENGTH || !isConnected || joining}
                   className="w-full px-6 py-3 bg-primary text-white rounded-xl font-semibold hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
                 >
                   {joining ? 'Joining…' : 'Join Room'}
                 </button>
+
+                {/* Public rooms */}
+                <div className="pt-1">
+                  <p className="text-text-muted text-xs font-medium mb-2 text-center uppercase tracking-wider">
+                    Public rooms
+                  </p>
+                  <PublicRoomList
+                    onJoin={handleJoinPublic}
+                    disabled={!displayName.trim() || !isConnected || joining}
+                  />
+                </div>
+
                 <button
-                  onClick={() => { setMode('home'); setJoinDigits(['', '', '', '']) }}
+                  onClick={() => { setMode('home'); setJoinDigits(Array(CODE_LENGTH).fill('')) }}
                   className="w-full px-6 py-3 bg-surface-light text-text border border-border rounded-xl font-medium hover:bg-border/50 transition-colors"
                 >
                   Back

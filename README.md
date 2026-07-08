@@ -15,11 +15,9 @@ A free, open-source, real-time multiplayer drawing & guessing game with **voice 
 
 <!-- TODO: drop your demo video here. On GitHub, drag-and-drop an .mp4 straight into the
      README editor (it uploads to user-attachments), or paste a YouTube link. -->
-https://github.com/user-attachments/assets/REPLACE_WITH_YOUR_DEMO_VIDEO
+<sub>▶️ _Demo video — updating soon._</sub>
 
-<sub>▶️ _Demo video coming soon._</sub>
-
-**[🎮 Play now](#)** &nbsp;·&nbsp; **[🤝 Help build it](#-want-to-help)**
+**🎮 Play now — updating soon** &nbsp;·&nbsp; **[🤝 Help build it](#-want-to-help)**
 <!-- TODO: point "Play now" at your live demo once deployed -->
 
 </div>
@@ -56,8 +54,9 @@ It's open source because game nights are better when anyone can host their own, 
 
 ## Screenshots
 
-> _Placeholders — drop images into `docs/screenshots/` and they'll show up here._
+> _Updating soon._
 
+<!-- TODO: drop images into docs/screenshots/ and restore the table below.
 | Home | In-game |
 |---|---|
 | ![Home](docs/screenshots/home.png) | ![Gameplay](docs/screenshots/game.png) |
@@ -65,6 +64,7 @@ It's open source because game nights are better when anyone can host their own, 
 | Lobby (with voice) | Leaderboard |
 |---|---|
 | ![Lobby](docs/screenshots/lobby.png) | ![Leaderboard](docs/screenshots/leaderboard.png) |
+-->
 
 ---
 

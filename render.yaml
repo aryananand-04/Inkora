@@ -1,0 +1,26 @@
+# Render blueprint — deploys the Inkora game server (Express + Socket.IO).
+# The client is deployed separately as a static site (e.g. Vercel).
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: inkora-server
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build --workspace=shared && npm run build --workspace=server
+    startCommand: node server/dist/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      # Set to your deployed client origin(s), comma-separated,
+      # e.g. https://inkora.vercel.app
+      - key: CORS_ORIGIN
+        sync: false
+      # Optional — only for accounts & leaderboard
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      # Optional — enables AI word-pack generation
+      - key: GROQ_API_KEY
+        sync: false

@@ -22,6 +22,13 @@ export interface ReadyEvent {
   currentDrawerId: string | null
 }
 
+// Points earned by a player during a single turn (for the end-of-turn reveal)
+export interface TurnScore {
+  playerId: string
+  playerName: string
+  points: number
+}
+
 export interface NextTurnEvent {
   round: number
   players: Player[]
@@ -29,6 +36,7 @@ export interface NextTurnEvent {
   previousWord: string | null
   drawerId: string
   turnEndReason: TurnEndReason | null
+  turnScores: TurnScore[]
 }
 
 export interface YourTurnEvent {
@@ -88,6 +96,8 @@ export interface ClientToServerEvents {
   'toggle-spectate': () => void
   'play-again': () => void
   'leave-room': () => void
+  'reaction': (data: { emoji: string }) => void
+  'generate-ai-words': (data: { theme: string }) => void
 }
 
 export interface ServerToClientEvents {
@@ -113,5 +123,7 @@ export interface ServerToClientEvents {
   'player-leave': (data: { playerId: string }) => void
   'settings-updated': (data: { settings: RoomSettings }) => void
   'game-reset': () => void
+  'reaction': (data: { playerId: string; playerName: string; emoji: string }) => void
+  'ai-words-result': (data: { theme: string; words: string[]; error?: string }) => void
   'error': (data: { message: string; code?: string }) => void
 }

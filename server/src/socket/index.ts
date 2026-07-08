@@ -1,8 +1,9 @@
 import type { Server, Socket } from 'socket.io'
-import type { ClientToServerEvents, ServerToClientEvents } from 'shared'
-import { CONSTANTS } from 'shared'
+import type { ClientToServerEvents, ServerToClientEvents, RoomSettings } from 'shared'
+import { CONSTANTS, WORD_CATEGORIES, REACTION_EMOJIS } from 'shared'
 import { roomManager, Player, Room } from '../rooms/index.js'
-import { createGameManager, getGameManager, deleteGameManager } from '../game/index.js'
+import { createGameManager, getGameManager, deleteGameManager, buildWordPool } from '../game/index.js'
+import { aiEnabled, generateWords } from '../services/ai.js'
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>
@@ -17,9 +18,24 @@ const lineCooldowns = new Map<string, { count: number; windowStart: number }>()
 const kickVotes = new Map<string, Map<string, Set<string>>>()
 // roomCode → visitorId → score  (ghost scores for players who left mid-game)
 const ghostScores = new Map<string, Map<string, number>>()
+// ip → recent join-attempt timestamps (brute-force protection)
+const joinAttempts = new Map<string, number[]>()
+// socketId → recent reaction timestamps
+const reactionCooldowns = new Map<string, number[]>()
+// roomCode → last AI generation timestamp
+const aiCooldowns = new Map<string, number>()
 
 const LINE_RATE_LIMIT = 200   // max line events per second per socket
 const DRAWING_HISTORY_CAP = 3000  // max stored draw events per room
+const JOIN_RATE_LIMIT = 10        // max join attempts per IP...
+const JOIN_RATE_WINDOW = 30_000   // ...per 30 seconds
+const REACTION_RATE_LIMIT = 5     // max reactions per socket...
+const REACTION_RATE_WINDOW = 3000 // ...per 3 seconds
+const AI_COOLDOWN_MS = 10_000     // min gap between AI generations per room
+
+const LOCALHOST_IPS = new Set(['::1', '127.0.0.1', '::ffff:127.0.0.1'])
+const VALID_CATEGORY_IDS = new Set<string>(WORD_CATEGORIES.map(c => c.id))
+const VALID_REACTIONS = new Set<string>(REACTION_EMOJIS)
 
 function sanitizeName(raw: unknown): string | null {
   if (typeof raw !== 'string') return null
@@ -27,8 +43,48 @@ function sanitizeName(raw: unknown): string | null {
   return s.length >= 1 ? s : null
 }
 
-function isValidRoomCode(code: unknown): boolean {
-  return typeof code === 'string' && /^[0-9]{4}$/.test(code)
+function sanitizeCustomWords(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return (raw as unknown[])
+    .filter((w): w is string => typeof w === 'string')
+    .map(w => w.trim())
+    .filter(w => w.length >= 2 && w.length <= 50)
+    .slice(0, 200)
+}
+
+function sanitizeCategories(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null
+  const valid = (raw as unknown[]).filter(
+    (c): c is string => typeof c === 'string' && VALID_CATEGORY_IDS.has(c),
+  )
+  return valid.length > 0 ? [...new Set(valid)] : null
+}
+
+// Clamp client-supplied settings at room creation (update-settings clamps later edits)
+function sanitizeSettings(raw: Partial<RoomSettings> | undefined): Partial<RoomSettings> {
+  if (!raw || typeof raw !== 'object') return {}
+  const s: Partial<RoomSettings> = {}
+  if (typeof raw.maxPlayers === 'number') s.maxPlayers = Math.min(10, Math.max(2, Math.floor(raw.maxPlayers)))
+  if (typeof raw.rounds === 'number') s.rounds = Math.min(10, Math.max(1, Math.floor(raw.rounds)))
+  if (typeof raw.drawingTime === 'number') s.drawingTime = Math.min(180, Math.max(30, Math.floor(raw.drawingTime)))
+  if (typeof raw.wordsPerTurn === 'number') s.wordsPerTurn = Math.min(5, Math.max(1, Math.floor(raw.wordsPerTurn)))
+  if (typeof raw.isPublic === 'boolean') s.isPublic = raw.isPublic
+  if (raw.scoringMode === 'normal' || raw.scoringMode === 'competitive') s.scoringMode = raw.scoringMode
+  if (raw.customWords !== undefined) s.customWords = sanitizeCustomWords(raw.customWords)
+  if (typeof raw.customWordsChance === 'number') s.customWordsChance = Math.min(100, Math.max(0, Math.floor(raw.customWordsChance)))
+  if (typeof raw.clientsPerIpLimit === 'number') s.clientsPerIpLimit = Math.min(10, Math.max(1, Math.floor(raw.clientsPerIpLimit)))
+  const cats = sanitizeCategories(raw.wordCategories)
+  if (cats) s.wordCategories = cats
+  return s
+}
+
+function checkJoinRate(ip: string): boolean {
+  if (LOCALHOST_IPS.has(ip)) return true
+  const now = Date.now()
+  const attempts = (joinAttempts.get(ip) ?? []).filter(t => now - t < JOIN_RATE_WINDOW)
+  attempts.push(now)
+  joinAttempts.set(ip, attempts)
+  return attempts.length <= JOIN_RATE_LIMIT
 }
 
 function checkLineRate(socketId: string): boolean {
@@ -79,6 +135,13 @@ function broadcastPlayers(io: TypedServer, room: Room) {
   io.to(room.code).emit('update-players', room.getPlayersArray().map(p => p.toJSON()))
 }
 
+function launchGame(io: TypedServer, room: Room) {
+  room.startGame()
+  console.log(`Game started in room: ${room.code}`)
+  const gameManager = createGameManager(room.code, room.settings)
+  gameManager.startTurn(io, room)
+}
+
 export function setupSocketHandlers(io: TypedServer) {
   io.on('connection', (socket: TypedSocket) => {
     console.log(`Connected: ${socket.id}`)
@@ -87,7 +150,10 @@ export function setupSocketHandlers(io: TypedServer) {
       const name = sanitizeName(playerName)
       if (!name) { socket.emit('error', { message: 'Invalid player name', code: 'INVALID_NAME' }); return }
       console.log(`[create-room] Player: ${name}, Socket: ${socket.id}`)
-      const room = roomManager.createRoom(settings, preferredCode)
+      const room = roomManager.createRoom(
+        sanitizeSettings(settings),
+        typeof preferredCode === 'string' ? preferredCode.toUpperCase() : undefined,
+      )
       const player = new Player(socket.id, name, getClientIp(socket), getVisitorId(socket))
 
       const result = room.addPlayer(player)
@@ -105,10 +171,18 @@ export function setupSocketHandlers(io: TypedServer) {
       sendReadyEvent(socket, room, player)
     })
 
-    socket.on('join-room', ({ roomCode, playerName }) => {
+    socket.on('join-room', ({ roomCode: rawCode, playerName }) => {
       const name = sanitizeName(playerName)
       if (!name) { socket.emit('error', { message: 'Invalid player name', code: 'INVALID_NAME' }); return }
-      if (!isValidRoomCode(roomCode)) { socket.emit('error', { message: 'Invalid room code', code: 'INVALID_CODE' }); return }
+
+      const roomCode = typeof rawCode === 'string' ? rawCode.toUpperCase() : ''
+      if (!roomManager.isValidCode(roomCode)) { socket.emit('error', { message: 'Invalid room code', code: 'INVALID_CODE' }); return }
+
+      // Brute-force protection: cap join attempts per IP
+      if (!checkJoinRate(getClientIp(socket))) {
+        socket.emit('error', { message: 'Too many join attempts — try again in a moment', code: 'RATE_LIMIT' })
+        return
+      }
 
       const room = roomManager.getRoom(roomCode)
 
@@ -160,7 +234,20 @@ export function setupSocketHandlers(io: TypedServer) {
         return
       }
 
-      const player = new Player(socket.id, name, getClientIp(socket), visitorId)
+      // Per-IP connection limit (localhost exempt so local dev/testing works)
+      const ip = getClientIp(socket)
+      if (!LOCALHOST_IPS.has(ip)) {
+        const sameIpCount = room.getPlayersArray().filter(p => p.ip === ip).length
+        if (sameIpCount >= room.settings.clientsPerIpLimit) {
+          socket.emit('error', {
+            message: 'Too many players from your network — the host can raise the per-network limit in settings',
+            code: 'IP_LIMIT',
+          })
+          return
+        }
+      }
+
+      const player = new Player(socket.id, name, ip, visitorId)
       const result = room.addPlayer(player)
 
       if (!result.success) {
@@ -213,6 +300,11 @@ export function setupSocketHandlers(io: TypedServer) {
 
       player.state = player.state === 'ready' ? 'standby' : 'ready'
       broadcastPlayers(io, room)
+
+      // Everyone readied up — start without waiting for the owner
+      if (room.allPlayersReady()) {
+        launchGame(io, room)
+      }
     })
 
     socket.on('toggle-spectate', () => {
@@ -248,13 +340,7 @@ export function setupSocketHandlers(io: TypedServer) {
         return
       }
 
-      // Start the game
-      room.startGame()
-      console.log(`Game started in room: ${room.code}`)
-
-      // Create game manager and start first turn
-      const gameManager = createGameManager(room.code, room.settings)
-      gameManager.startTurn(io, room)
+      launchGame(io, room)
     })
 
     socket.on('choose-word', ({ wordIndex }) => {
@@ -403,6 +489,23 @@ export function setupSocketHandlers(io: TypedServer) {
         if (settings.maxPlayers !== undefined) {
           room.settings.maxPlayers = Math.min(10, Math.max(2, Math.floor(settings.maxPlayers)))
         }
+        if (settings.clientsPerIpLimit !== undefined) {
+          room.settings.clientsPerIpLimit = Math.min(10, Math.max(1, Math.floor(settings.clientsPerIpLimit)))
+        }
+      }
+
+      // Public listing can be toggled at any time
+      if (typeof settings.isPublic === 'boolean') {
+        room.settings.isPublic = settings.isPublic
+      }
+
+      // Word categories: changeable any time (mid-game changes swap the deck)
+      const categories = settings.wordCategories !== undefined ? sanitizeCategories(settings.wordCategories) : null
+      if (categories) {
+        room.settings.wordCategories = categories
+        if (isOngoing) {
+          getGameManager(roomCode)?.updateDefaultWords(buildWordPool(categories))
+        }
       }
 
       // Rounds: changeable any time. Mid-game it can't drop below the round in
@@ -426,11 +529,7 @@ export function setupSocketHandlers(io: TypedServer) {
 
       // Custom words
       if (Array.isArray(settings.customWords)) {
-        room.settings.customWords = (settings.customWords as unknown[])
-          .filter((w): w is string => typeof w === 'string')
-          .map(w => w.trim())
-          .filter(w => w.length >= 2 && w.length <= 50)
-          .slice(0, 200)
+        room.settings.customWords = sanitizeCustomWords(settings.customWords)
       }
       if (settings.customWordsChance !== undefined) {
         room.settings.customWordsChance = Math.min(100, Math.max(0, Math.floor(settings.customWordsChance)))
@@ -529,6 +628,71 @@ export function setupSocketHandlers(io: TypedServer) {
       broadcastPlayers(io, room)
     })
 
+    socket.on('reaction', ({ emoji }) => {
+      const roomCode = socketRooms.get(socket.id)
+      if (!roomCode) return
+      const room = roomManager.getRoom(roomCode)
+      if (!room) return
+      const player = room.getPlayer(socket.id)
+      if (!player) return
+      if (!VALID_REACTIONS.has(emoji)) return
+
+      const now = Date.now()
+      const timestamps = (reactionCooldowns.get(socket.id) ?? [])
+        .filter(t => now - t < REACTION_RATE_WINDOW)
+      if (timestamps.length >= REACTION_RATE_LIMIT) return
+      timestamps.push(now)
+      reactionCooldowns.set(socket.id, timestamps)
+
+      io.to(roomCode).emit('reaction', {
+        playerId: player.id,
+        playerName: player.name,
+        emoji,
+      })
+    })
+
+    socket.on('generate-ai-words', async ({ theme }) => {
+      const roomCode = socketRooms.get(socket.id)
+      if (!roomCode) return
+      const room = roomManager.getRoom(roomCode)
+      if (!room || room.ownerId !== socket.id) return
+
+      const cleanTheme = typeof theme === 'string' ? theme.trim().slice(0, 40) : ''
+      if (cleanTheme.length < 2) {
+        socket.emit('ai-words-result', { theme: cleanTheme, words: [], error: 'Theme too short' })
+        return
+      }
+
+      if (!aiEnabled()) {
+        socket.emit('ai-words-result', {
+          theme: cleanTheme, words: [],
+          error: 'AI word generation is not configured on this server',
+        })
+        return
+      }
+
+      const now = Date.now()
+      const lastRun = aiCooldowns.get(roomCode) ?? 0
+      if (now - lastRun < AI_COOLDOWN_MS) {
+        socket.emit('ai-words-result', {
+          theme: cleanTheme, words: [],
+          error: 'Please wait a few seconds between generations',
+        })
+        return
+      }
+      aiCooldowns.set(roomCode, now)
+
+      try {
+        const words = await generateWords(cleanTheme)
+        socket.emit('ai-words-result', { theme: cleanTheme, words })
+      } catch (err) {
+        socket.emit('ai-words-result', {
+          theme: cleanTheme, words: [],
+          error: err instanceof Error ? err.message : 'AI generation failed',
+        })
+      }
+    })
+
     socket.on('leave-room', () => {
       handleLeave(socket, io, true)
     })
@@ -556,10 +720,12 @@ function kickPlayer(io: TypedServer, room: Room, player: Player, _initiatorId: s
   }
   messageCooldowns.delete(player.id)
   lineCooldowns.delete(player.id)
+  reactionCooldowns.delete(player.id)
 
   if (room.isEmpty()) {
     deleteGameManager(room.code)
     kickVotes.delete(room.code)
+    aiCooldowns.delete(room.code)
     roomManager.deleteRoom(room.code)
     return
   }
@@ -586,6 +752,7 @@ function kickPlayer(io: TypedServer, room: Room, player: Player, _initiatorId: s
 function handleLeave(socket: TypedSocket, io: TypedServer, intentional: boolean) {
   messageCooldowns.delete(socket.id)
   lineCooldowns.delete(socket.id)
+  reactionCooldowns.delete(socket.id)
   // Keep the session alive on accidental disconnects so the player can reconnect;
   // only remove it when they intentionally click Leave.
   if (intentional) playerSessions.delete(getVisitorId(socket))
@@ -629,10 +796,13 @@ function handleLeave(socket: TypedSocket, io: TypedServer, intentional: boolean)
         type: 'system',
       })
 
-      // Transfer ownership immediately so the room isn't ownerless
-      if (room.ownerId === player.id && room.ownerId) {
-        const newOwner = room.getPlayer(room.ownerId)
+      // Transfer ownership immediately so the room isn't ownerless while the
+      // disconnected owner's slot is reserved. (room.ownerId still points at
+      // the disconnected player here — reassign it to a connected one.)
+      if (room.ownerId === player.id) {
+        const newOwner = room.getConnectedPlayers().find(p => p.id !== player.id)
         if (newOwner) {
+          room.ownerId = newOwner.id
           io.to(roomCode).emit('owner-change', {
             playerId: newOwner.id,
             playerName: newOwner.name,
@@ -687,6 +857,7 @@ function removePlayer(io: TypedServer, room: Room, player: Player, silent = fals
     deleteGameManager(room.code)
     kickVotes.delete(room.code)
     ghostScores.delete(room.code)
+    aiCooldowns.delete(room.code)
     roomManager.deleteRoom(room.code)
     console.log(`Room deleted: ${room.code}`)
   } else {

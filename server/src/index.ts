@@ -4,6 +4,7 @@ import { Server } from 'socket.io'
 import cors from 'cors'
 import { setupSocketHandlers } from './socket/index.js'
 import { registerLeaderboardRoutes } from './api/leaderboard.js'
+import { registerRoomRoutes } from './api/rooms.js'
 import type { ClientToServerEvents, ServerToClientEvents } from 'shared'
 
 const app = express()
@@ -35,6 +36,7 @@ app.get('/api/health', (_req, res) => {
 
 setupSocketHandlers(io)
 registerLeaderboardRoutes(app)
+registerRoomRoutes(app)
 
 const PORT = process.env.PORT || 3001
 

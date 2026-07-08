@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch --ignore '../node_modules/**' --ignore '../shared/**' src/index.ts",
-    "build": "tsc",
+    "build": "tsc && cp -R src/data dist/data",
     "start": "node dist/index.js",
     "test": "node --import tsx --test src/game/guessChecker.test.ts src/game/scoring.test.ts",
     "lint": "eslint src/"
